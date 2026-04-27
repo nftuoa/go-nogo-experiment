@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>极限反应挑战</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #1a1a2e;
+    --grass: #4a7c59;
+    --dirt: #8B6914;
+    --hole-dark: #2a1506;
+    --gold: #ffd700;
+    --red: #e94560;
+    --green: #4ecca3;
+    --panel-bg: #16213e;
+    --text: #eee;
+  }
+
+  body {
+    font-family: 'Press Start 2P', 'Courier New', monospace;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow-x: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* ========== SCREENS ========== */
+  .screen {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    max-width: 520px;
+    padding: 20px;
+  }
+  .screen.active { display: flex; }
+
+  /* ========== WELCOME SCREEN ========== */
+  #welcome-screen { text-align: center; gap: 24px; }
+
+  #welcome-screen .title {
+    font-size: clamp(1.2rem, 4vw, 1.6rem);
+    color: var(--gold);
+    text-shadow: 3px 3px 0 #000;
+    line-height: 1.6;
+  }
+
+  #welcome-screen .rules {
+    background: var(--panel-bg);
+    border: 3px solid #333;
+    border-radius: 8px;
+    padding: 20px;
+    font-size: 0.55rem;
+    line-height: 2;
+    text-align: left;
+    box-shadow: 4px 4px 0 rgba(0,0,0,0.4);
+  }
+  #welcome-screen .rules .rule-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 10px 0;
+  }
+  #welcome-screen .rules .emoji-icon { font-size: 1.8rem; }
+
+  .btn {
+    font-family: inherit;
+    font-size: clamp(0.55rem, 2.2vw, 0.7rem);
+    padding: 14px 36px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    transition: transform 0.1s, box-shadow 0.1s;
+    box-shadow: 0 4px 0 rgba(0,0,0,0.3);
+  }
+  .btn:active { transform: translateY(3px); box-shadow: 0 1px 0 rgba(0,0,0,0.3); }
+
+  .btn-start {
+    background: var(--green);
+    color: #000;
+    font-size: clamp(0.65rem, 2.5vw, 0.8rem);
+    padding: 18px 48px;
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 4px 0 rgba(0,0,0,0.3), 0 0 0 0 rgba(78,204,163,0.5); }
+    50% { box-shadow: 0 4px 0 rgba(0,0,0,0.3), 0 0 20px 8px rgba(78,204,163,0.2); }
+  }
+
+  .btn-consent  { background: var(--green); color: #000; }
+  .btn-download { background: #3498db; color: #fff; }
+  .btn-reject   { background: #555; color: #ccc; }
+
+  /* ========== GAME SCREEN ========== */
+  #game-screen { gap: 16px; }
+
+  .hud {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    max-width: 420px;
+    gap: 16px;
+  }
+  .hud-box {
+    background: var(--panel-bg);
+    border: 2px solid #444;
+    border-radius: 6px;
+    padding: 12px 16px;
+    text-align: center;
+    flex: 1;
+  }
+  .hud-label {
+    font-size: 0.45rem;
+    color: #aaa;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+  }
+  .hud-value {
+    font-size: clamp(0.8rem, 3vw, 1.1rem);
+    color: var(--gold);
+  }
+  .hud-value.combo { color: var(--green); }
+
+  .progress-bar-wrap {
+    width: 100%;
+    max-width: 420px;
+    height: 8px;
+    background: #333;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    background: var(--green);
+    transition: width 0.2s;
+    width: 0%;
+    border-radius: 4px;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    max-width: 420px;
+    width: 100%;
+    padding: 20px;
+    background: var(--grass);
+    border-radius: 16px;
+    border: 4px solid #3d6b4a;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5), inset 0 2px 8px rgba(255,255,255,0.05);
+  }
+
+  .hole {
+    aspect-ratio: 1;
+    position: relative;
+    cursor: pointer;
+    background: radial-gradient(circle at 50% 60%, #1a0a00 0%, #2a1506 50%, #3d2010 100%);
+    border-radius: 50%;
+    box-shadow: inset 0 10px 30px rgba(0,0,0,0.8), 0 6px 12px rgba(0,0,0,0.4);
+    touch-action: manipulation;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  .character {
+    font-size: clamp(3rem, 12vw, 5rem);
+    transform: scale(0);
+    opacity: 0;
+    transition: transform 0.1s cubic-bezier(0.34, 1.56, 0.64, 1),
+                opacity 0.06s ease-out;
+    pointer-events: none;
+    filter: drop-shadow(2px 4px 3px rgba(0,0,0,0.5));
+    line-height: 1;
+  }
+  .character.active {
+    transform: scale(1);
+    opacity: 1;
+  }
+  .character.hit-mole {
+    transform: scale(1.4);
+    opacity: 0;
+    transition: transform 0.12s ease-in, opacity 0.1s ease-in;
+  }
+  .character.hit-bomb {
+    animation: shake 0.4s ease-out;
+  }
+  @keyframes shake {
+    0%, 100% { transform: scale(1); }
+    20%  { transform: translateX(-6px) scale(1); }
+    40%  { transform: translateX(6px) scale(1); }
+    60%  { transform: translateX(-4px) scale(1); }
+    80%  { transform: translateX(4px) scale(1); }
+  }
+
+  .float-text {
+    position: fixed;
+    pointer-events: none;
+    font-family: inherit;
+    font-size: 0.8rem;
+    font-weight: bold;
+    z-index: 100;
+    animation: floatUp 0.8s ease-out forwards;
+  }
+  @keyframes floatUp {
+    0% { opacity: 1; transform: translateY(0); }
+    100% { opacity: 0; transform: translateY(-60px); }
+  }
+
+  /* ========== RESULT OVERLAY ========== */
+  #result-screen { gap: 20px; }
+
+  #result-screen .title {
+    font-size: clamp(0.9rem, 3.5vw, 1.2rem);
+    color: var(--gold);
+    text-align: center;
+    line-height: 1.6;
+  }
+
+  .result-stats {
+    display: flex;
+    gap: 16px;
+    width: 100%;
+    max-width: 400px;
+  }
+  .stat-card {
+    flex: 1;
+    background: var(--panel-bg);
+    border: 2px solid #444;
+    border-radius: 8px;
+    padding: 16px 8px;
+    text-align: center;
+  }
+  .stat-value {
+    font-size: clamp(1rem, 4vw, 1.5rem);
+    color: var(--gold);
+    margin-bottom: 4px;
+  }
+  .stat-value.danger { color: var(--red); }
+  .stat-label {
+    font-size: 0.4rem;
+    color: #aaa;
+    line-height: 1.5;
+  }
+
+  .disclosure {
+    background: var(--panel-bg);
+    border: 2px solid var(--gold);
+    border-radius: 8px;
+    padding: 18px;
+    font-size: 0.45rem;
+    line-height: 2;
+    text-align: center;
+  }
+  .disclosure em {
+    color: var(--gold);
+    font-style: normal;
+  }
+
+  .btn-row {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .thanks {
+    font-size: 0.5rem;
+    color: var(--green);
+    text-align: center;
+    line-height: 1.8;
+    display: none;
+  }
+  .thanks.show { display: block; }
+
+  /* ========== RESPONSIVE ========== */
+  @media (max-width: 400px) {
+    .grid { gap: 8px; padding: 12px; }
+    .hud-box { padding: 8px 10px; }
+    .btn-row { flex-direction: column; align-items: stretch; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ==================== WELCOME SCREEN ==================== -->
+<div id="welcome-screen" class="screen active">
+  <div class="title">⚡ 极限反应挑战 ⚡</div>
+
+  <div class="rules">
+    <div class="rule-item">
+      <span class="emoji-icon">🐹</span>
+      <span>看到<strong>普通地鼠</strong> → <span style="color:#4ecca3">快速点击它！</span> +10分</span>
+    </div>
+    <div class="rule-item">
+      <span class="emoji-icon">🦔</span>
+      <span>看到<strong>刺盔地鼠</strong> → <span style="color:#e94560">千万别点！</span> 点了扣50分</span>
+    </div>
+    <div style="margin-top:12px; font-size:0.48rem; color:#aaa; text-align:center;">
+      共 100 轮 · 每次出现仅 0.8 秒<br>考验你的反应与克制力！
+    </div>
+  </div>
+
+  <button class="btn btn-start" id="btn-start" onclick="game.start()">
+    ▶ 开始游戏
+  </button>
+</div>
+
+<!-- ==================== GAME SCREEN ==================== -->
+<div id="game-screen" class="screen">
+  <div class="hud">
+    <div class="hud-box">
+      <div class="hud-label">得分</div>
+      <div class="hud-value" id="score-display">0</div>
+    </div>
+    <div class="hud-box">
+      <div class="hud-label">连击</div>
+      <div class="hud-value combo" id="combo-display">0x</div>
+    </div>
+    <div class="hud-box">
+      <div class="hud-label">进度</div>
+      <div class="hud-value" id="progress-display">0/100</div>
+    </div>
+  </div>
+
+  <div class="progress-bar-wrap">
+    <div class="progress-bar-fill" id="progress-bar"></div>
+  </div>
+
+  <div class="grid" id="grid">
+  </div>
+</div>
+
+<!-- ==================== RESULT SCREEN ==================== -->
+<div id="result-screen" class="screen">
+  <div class="title">📊 挑战结束</div>
+
+  <div class="result-stats">
+    <div class="stat-card">
+      <div class="stat-value" id="final-score">0</div>
+      <div class="stat-label">总得分</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value" id="final-hits">0</div>
+      <div class="stat-label">打中地鼠</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value danger" id="final-bombs">0</div>
+      <div class="stat-label">误触刺盔地鼠</div>
+    </div>
+  </div>
+
+  <div class="disclosure">
+    <em>Surprise！</em><br><br>
+    其实这是为心理学课程设计的<em>「冲动抑制」Go/No-Go 微型实验</em>。<br><br>
+    普通地鼠是为了让你形成<em>肌肉记忆</em>，<br>
+    刺盔地鼠是为了测试大脑的<em>冲动抑制与紧急刹车能力</em>。
+  </div>
+
+  <div class="btn-row" id="result-buttons">
+    <button class="btn btn-consent" onclick="game.consent()">
+      ✅ 同意授权数据用于作业
+    </button>
+    <button class="btn btn-download" onclick="game.download()">
+      📥 下载实验数据 (JSON)
+    </button>
+    <button class="btn btn-reject" onclick="game.reject()">
+      ❌ 拒绝，仅查看成绩
+    </button>
+  </div>
+
+  <div class="thanks" id="thanks-msg"></div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  // ======================== DOM ========================
+  const $welcome  = document.getElementById('welcome-screen');
+  const $game     = document.getElementById('game-screen');
+  const $result   = document.getElementById('result-screen');
+  const $grid     = document.getElementById('grid');
+  const $score    = document.getElementById('score-display');
+  const $combo    = document.getElementById('combo-display');
+  const $progress = document.getElementById('progress-display');
+  const $progBar  = document.getElementById('progress-bar');
+  const $fScore   = document.getElementById('final-score');
+  const $fHits    = document.getElementById('final-hits');
+  const $fBombs   = document.getElementById('final-bombs');
+  const $thanks   = document.getElementById('thanks-msg');
+  const $btns     = document.getElementById('result-buttons');
+
+  // ======================== GAME STATE ========================
+  const TOTAL_TRIALS  = 100;
+  const GO_COUNT      = 80;
+  const NOGO_COUNT    = 20;
+  const DISPLAY_MS    = 600;
+  const ITI_MIN_MS    = 200;
+  const ITI_MAX_MS    = 350;
+  const SCORE_HIT     = 10;
+  const SCORE_BOMB    = -50;
+
+  let trials        = [];     // ['go'|'no-go', ...] length 100
+  let currentIndex  = 0;
+  let activeHole    = -1;     // 0-8, -1 = none
+  let appearTime    = 0;
+  let score         = 0;
+  let combo         = 0;
+  let moleHits      = 0;
+  let bombHits      = 0;
+  let dataLog       = [];     // trial records
+  let activeTrialType = null; // 'go' | 'no-go'
+  let trialTimer    = null;   // setTimeout for 800ms
+  let itiTimer      = null;   // setTimeout for inter-trial
+  let gameActive    = false;
+  let elementAlive  = false;  // true when element is visible & clickable
+
+  // ======================== UTIL ========================
+  function shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.random() * (i + 1) | 0;
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+  }
+
+  function randInt(min, max) {
+    return min + (Math.random() * (max - min + 1) | 0);
+  }
+
+  function switchScreen(active) {
+    [$welcome, $game, $result].forEach(s => s.classList.remove('active'));
+    active.classList.add('active');
+  }
+
+  // ======================== FLOAT TEXT ========================
+  function showFloatText(x, y, text, color) {
+    const el = document.createElement('div');
+    el.className = 'float-text';
+    el.textContent = text;
+    el.style.left = x + 'px';
+    el.style.top  = y + 'px';
+    el.style.color = color;
+    document.body.appendChild(el);
+    el.addEventListener('animationend', () => el.remove());
+  }
+
+  // ======================== BUILD GRID ========================
+  function buildGrid() {
+    $grid.innerHTML = '';
+    for (let i = 0; i < 9; i++) {
+      const hole = document.createElement('div');
+      hole.className = 'hole';
+      hole.dataset.index = i;
+
+      const charEl = document.createElement('span');
+      charEl.className = 'character';
+      charEl.textContent = '';
+      hole.appendChild(charEl);
+
+      hole.addEventListener('click', (e) => onHoleClick(i, hole, e));
+      hole.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        onHoleClick(i, hole, e);
+      });
+
+      $grid.appendChild(hole);
+    }
+  }
+
+  function getCharEl(holeIndex) {
+    return $grid.children[holeIndex].querySelector('.character');
+  }
+
+  // ======================== GAME FLOW ========================
+  function startGame() {
+    // Generate trials
+    trials = [];
+    for (let i = 0; i < GO_COUNT; i++) trials.push('go');
+    for (let i = 0; i < NOGO_COUNT; i++) trials.push('no-go');
+    shuffle(trials);
+
+    // Reset state
+    currentIndex  = 0;
+    activeHole    = -1;
+    score         = 0;
+    combo         = 0;
+    moleHits      = 0;
+    bombHits      = 0;
+    dataLog       = [];
+    activeTrialType = null;
+    elementAlive  = false;
+    gameActive    = true;
+
+    updateHUD();
+    switchScreen($game);
+    buildGrid();
+
+    // Start first trial after a short delay
+    itiTimer = setTimeout(runTrial, 400);
+  }
+
+  function endGame() {
+    gameActive = false;
+    elementAlive = false;
+    clearTimeout(trialTimer);
+    clearTimeout(itiTimer);
+
+    // Ensure all holes are cleared
+    for (let i = 0; i < 9; i++) {
+      getCharEl(i).classList.remove('active', 'hit-mole', 'hit-bomb');
+      getCharEl(i).textContent = '';
+    }
+
+    // Show results
+    $fScore.textContent = score;
+    $fHits.textContent  = moleHits;
+    $fBombs.textContent = bombHits;
+    $thanks.classList.remove('show');
+    $thanks.textContent = '';
+    $btns.style.display = '';
+    switchScreen($result);
+  }
+
+  function runTrial() {
+    if (!gameActive) return;
+    if (currentIndex >= TOTAL_TRIALS) { endGame(); return; }
+
+    updateHUD();
+
+    const type = trials[currentIndex];
+    activeTrialType = type;
+    activeHole = randInt(0, 8);
+
+    const charEl = getCharEl(activeHole);
+    charEl.textContent = type === 'go' ? '🐹' : '🦔';
+    charEl.classList.add('active');
+    charEl.classList.remove('hit-mole', 'hit-bomb');
+
+    appearTime = Date.now();
+    elementAlive = true;
+
+    // 800ms timeout: auto-hide if not clicked
+    trialTimer = setTimeout(onTrialTimeout, DISPLAY_MS);
+  }
+
+  function onTrialTimeout() {
+    // Already handled by click?
+    if (!elementAlive) return;
+    elementAlive = false;
+
+    const type = activeTrialType;
+    const hole = activeHole;
+
+    // Hide element
+    const charEl = getCharEl(hole);
+    charEl.classList.remove('active');
+
+    // Record data
+    const isCorrect = (type === 'no-go'); // not clicking a bomb is correct
+    dataLog.push({
+      trial_num: currentIndex + 1,
+      type: type,
+      reaction_time: null,
+      is_correct: isCorrect
+    });
+
+    // Update score: missing a mole gives 0, correctly avoiding bomb gives 0
+    // Combo resets on missed mole
+    if (type === 'go') {
+      combo = 0;
+    }
+
+    updateHUD();
+    scheduleNext();
+  }
+
+  function onHoleClick(holeIndex, holeEl, event) {
+    if (!gameActive || !elementAlive) return;
+    if (holeIndex !== activeHole) return;
+
+    // Got it!
+    elementAlive = false;
+    clearTimeout(trialTimer);
+
+    const type = activeTrialType;
+    const rt = Date.now() - appearTime;
+    const charEl = getCharEl(holeIndex);
+
+    const rect = holeEl.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+
+    if (type === 'go') {
+      // Correct: hit mole
+      charEl.classList.remove('active');
+      charEl.classList.add('hit-mole');
+      score += SCORE_HIT;
+      combo++;
+      moleHits++;
+      showFloatText(cx, cy, '+' + SCORE_HIT, '#4ecca3');
+
+      dataLog.push({
+        trial_num: currentIndex + 1,
+        type: 'go',
+        reaction_time: rt,
+        is_correct: true
+      });
+    } else {
+      // Error: hit bomb
+      charEl.classList.remove('active');
+      charEl.classList.add('hit-bomb');
+      score += SCORE_BOMB;
+      combo = 0;
+      bombHits++;
+      showFloatText(cx, cy, '' + SCORE_BOMB, '#e94560');
+
+      dataLog.push({
+        trial_num: currentIndex + 1,
+        type: 'no-go',
+        reaction_time: rt,
+        is_correct: false
+      });
+
+      // Keep shake visible briefly then remove
+      setTimeout(() => {
+        if (charEl) charEl.classList.remove('hit-bomb');
+      }, 400);
+    }
+
+    updateHUD();
+    scheduleNext();
+  }
+
+  function scheduleNext() {
+    activeHole = -1;
+    activeTrialType = null;
+
+    currentIndex++;
+
+    if (currentIndex >= TOTAL_TRIALS) {
+      // Short delay before ending so user sees final state
+      itiTimer = setTimeout(endGame, 500);
+      return;
+    }
+
+    const delay = randInt(ITI_MIN_MS, ITI_MAX_MS);
+    itiTimer = setTimeout(runTrial, delay);
+  }
+
+  // ======================== HUD ========================
+  function updateHUD() {
+    $score.textContent = score;
+    $combo.textContent = combo + 'x';
+    const shown = Math.min(currentIndex + 1, TOTAL_TRIALS);
+    $progress.textContent = shown + '/' + TOTAL_TRIALS;
+    $progBar.style.width = (currentIndex / TOTAL_TRIALS * 100) + '%';
+  }
+
+  // ======================== RESULT ACTIONS ========================
+  function consent() {
+    console.log('===== Go/No-Go 实验数据 =====');
+    console.log('总试次:', dataLog.length);
+    console.log('数据数组:');
+    console.log(JSON.stringify(dataLog, null, 2));
+    console.log('===== 数据结束 =====');
+
+    $btns.style.display = 'none';
+    $thanks.textContent = '数据已输出到控制台 (F12 → Console)。\n感谢你的参与和对心理学研究的贡献！❤️';
+    $thanks.classList.add('show');
+  }
+
+  function download() {
+    const blob = new Blob([JSON.stringify(dataLog, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'go-nogo-data-' + new Date().toISOString().slice(0, 10) + '.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function reject() {
+    $btns.style.display = 'none';
+    $thanks.textContent = '感谢你的参与！\n你的数据不会被记录。';
+    $thanks.classList.add('show');
+  }
+
+  // ======================== EXPORT ========================
+  window.game = {
+    start: startGame,
+    consent: consent,
+    download: download,
+    reject: reject,
+  };
+
+  // Init grid on load
+  buildGrid();
+})();
+</script>
+
+</body>
+</html>
