@@ -262,9 +262,9 @@
     background: var(--panel-bg);
     border: 2px solid var(--gold);
     border-radius: 8px;
-    padding: 18px;
-    font-size: 0.45rem;
-    line-height: 2;
+    padding: 20px;
+    font-size: 0.55rem;
+    line-height: 2.2;
     text-align: center;
   }
   .disclosure em {
@@ -287,45 +287,58 @@
   }
   .thanks.show { display: block; }
 
-  .data-export {
-    display: none;
-    flex-direction: column;
-    align-items: stretch;
-    width: 100%;
-    max-width: 400px;
-    gap: 10px;
-  }
-  .data-export.show { display: flex; }
-
-  .data-export textarea {
-    font-family: 'Courier New', monospace;
-    font-size: 0.75rem;
-    background: #0d1b2a;
-    color: #a8d8a8;
-    border: 2px solid var(--green);
-    border-radius: 6px;
-    padding: 12px;
-    height: 180px;
-    resize: vertical;
-    outline: none;
-    user-select: text;
-    -webkit-user-select: text;
-    line-height: 1.6;
-  }
-
-  .btn-copy {
-    background: var(--green);
-    color: #000;
-    align-self: center;
-  }
-
   /* ========== RESPONSIVE ========== */
   @media (max-width: 400px) {
     .grid { gap: 8px; padding: 12px; }
     .hud-box { padding: 8px 10px; }
     .btn-row { flex-direction: column; align-items: stretch; }
   }
+  /* ========== LEADERBOARD ========== */
+  .leaderboard-section {
+    width: 100%;
+    max-width: 420px;
+    margin-top: 8px;
+  }
+  .leaderboard-section h3 {
+    font-size: 0.55rem;
+    text-align: center;
+    color: var(--gold);
+    margin-bottom: 12px;
+  }
+  .leaderboard-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.42rem;
+  }
+  .leaderboard-table th,
+  .leaderboard-table td {
+    padding: 8px 4px;
+    text-align: center;
+    border-bottom: 1px solid #333;
+  }
+  .leaderboard-table th {
+    color: #aaa;
+    font-size: 0.38rem;
+    text-transform: uppercase;
+  }
+  .leaderboard-table tr.me {
+    background: rgba(255,215,0,0.12);
+  }
+  .leaderboard-table .rank-1 { color: #ffd700; }
+  .leaderboard-table .rank-2 { color: #c0c0c0; }
+  .leaderboard-table .rank-3 { color: #cd7f32; }
+  .rank-badge { font-size: 0.7rem; }
+  .upload-status {
+    font-size: 0.4rem;
+    text-align: center;
+    margin: 8px 0;
+    min-height: 1.4em;
+  }
+  .upload-status.success { color: var(--green); }
+  .upload-status.error   { color: var(--red); }
+  .upload-status.loading { color: #aaa; }
 </style>
+<script src="https://static.cloudbase.net/cloudbase-js-sdk/latest/cloudbase.full.js"></script>
 </head>
 <body>
 
@@ -407,20 +420,24 @@
     <button class="btn btn-consent" onclick="game.consent()">
       ✅ 同意授权数据用于作业
     </button>
-    <button class="btn btn-download" onclick="game.download()">
-      📥 下载实验数据 (JSON)
-    </button>
     <button class="btn btn-reject" onclick="game.reject()">
-      ❌ 拒绝，仅查看成绩
+      📋 仅查看排行榜
     </button>
+  </div>
+
+  <div class="upload-status" id="upload-status"></div>
+
+  <div class="leaderboard-section" id="leaderboard-section" style="display:none;">
+    <h3>🏆 排行榜</h3>
+    <table class="leaderboard-table">
+      <thead>
+        <tr><th>排名</th><th>玩家</th><th>得分</th><th>击中</th><th>误触</th></tr>
+      </thead>
+      <tbody id="leaderboard-body"></tbody>
+    </table>
   </div>
 
   <div class="thanks" id="thanks-msg"></div>
-
-  <div class="data-export" id="data-export">
-    <textarea id="data-textarea" readonly></textarea>
-    <button class="btn btn-copy" id="btn-copy" onclick="game.copyData()">📋 一键复制</button>
-  </div>
 </div>
 
 <script>
@@ -439,10 +456,8 @@
   const $fScore   = document.getElementById('final-score');
   const $fHits    = document.getElementById('final-hits');
   const $fBombs   = document.getElementById('final-bombs');
-  const $thanks    = document.getElementById('thanks-msg');
-  const $btns      = document.getElementById('result-buttons');
-  const $dataExport = document.getElementById('data-export');
-  const $dataTA    = document.getElementById('data-textarea');
+  const $thanks   = document.getElementById('thanks-msg');
+  const $btns     = document.getElementById('result-buttons');
 
   // ======================== GAME STATE ========================
   const TOTAL_TRIALS  = 100;
@@ -572,7 +587,6 @@
     $thanks.classList.remove('show');
     $thanks.textContent = '';
     $btns.style.display = '';
-    $dataExport.classList.remove('show');
     switchScreen($result);
   }
 
@@ -711,48 +725,160 @@
     $progBar.style.width = (currentIndex / TOTAL_TRIALS * 100) + '%';
   }
 
+  // ======================== CLOUDBASE ========================
+  const ENV_ID = 'tables-d8glb9q3ze3e6c67e';
+  let tcbApp   = null;
+  let tcbDb    = null;
+  let tcbReady = false;
+  let playerId    = null;
+  let playerLabel = null;
+
+  async function initCloudBase() {
+    if (typeof cloudbase === 'undefined') {
+      console.warn('CloudBase SDK 未加载');
+      return false;
+    }
+    if (tcbReady) return true;
+    try {
+      tcbApp = cloudbase.init({ env: ENV_ID });
+      const auth = tcbApp.auth({ persistence: 'local' });
+      await auth.anonymousAuthProvider().signIn();
+      tcbDb = tcbApp.database();
+      tcbReady = true;
+
+      const state = await auth.getLoginState();
+      playerId = state?.user?.uid || 'unknown';
+
+      // 尝试用 IP 区分的玩家标识
+      playerLabel = await getPlayerLabel();
+      return true;
+    } catch (e) {
+      console.warn('CloudBase 初始化失败:', e.message);
+      return false;
+    }
+  }
+
+  async function getPlayerLabel() {
+    const saved = localStorage.getItem('wm_player_label');
+    if (saved) return saved;
+
+    try {
+      const resp = await fetch('https://api.ipify.org?format=json');
+      const data = await resp.json();
+      const parts = data.ip.split('.');
+      const label = parts[0] + '.' + parts[1] + '.***';
+      localStorage.setItem('wm_player_label', label);
+      return label;
+    } catch {
+      const label = '玩家-' + (playerId || '????').slice(-6);
+      localStorage.setItem('wm_player_label', label);
+      return label;
+    }
+  }
+
+  async function uploadExperimentData() {
+    if (!tcbReady) return false;
+    try {
+      await tcbDb.collection('experiment_data').add({
+        playerId: playerId,
+        playerLabel: playerLabel,
+        score: score,
+        moleHits: moleHits,
+        bombHits: bombHits,
+        totalTrials: dataLog.length,
+        trials: dataLog,
+        createdAt: new Date().toISOString()
+      });
+      return true;
+    } catch (e) {
+      console.error('上传失败:', e.message);
+      return false;
+    }
+  }
+
+  async function fetchLeaderboard(limit) {
+    if (!tcbReady) return [];
+    try {
+      const res = await tcbDb.collection('experiment_data')
+        .orderBy('score', 'desc')
+        .limit(limit || 20)
+        .get();
+      return res.data || [];
+    } catch (e) {
+      console.error('获取排行榜失败:', e.message);
+      return [];
+    }
+  }
+
+  async function showLeaderboard() {
+    const section = document.getElementById('leaderboard-section');
+    const tbody   = document.getElementById('leaderboard-body');
+    const data = await fetchLeaderboard(20);
+
+    if (data.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" style="padding:16px;color:#aaa;">暂无数据</td></tr>';
+      section.style.display = '';
+      return;
+    }
+
+    const escapeH = (function() {
+      const div = document.createElement('div');
+      return function(s) { div.textContent = s || ''; return div.innerHTML; };
+    })();
+
+    let html = '';
+    data.forEach(function(row, i) {
+      const rank = i + 1;
+      let rankClass = '', rankDisp = String(rank);
+      if (rank === 1)      { rankClass = 'rank-1'; rankDisp = '🥇'; }
+      else if (rank === 2) { rankClass = 'rank-2'; rankDisp = '🥈'; }
+      else if (rank === 3) { rankClass = 'rank-3'; rankDisp = '🥉'; }
+
+      const isMe = row.playerId === playerId;
+      html += '<tr class="' + (isMe ? 'me' : '') + '">'
+        + '<td class="' + rankClass + '"><span class="rank-badge">' + rankDisp + '</span></td>'
+        + '<td>' + escapeH(row.playerLabel) + '</td>'
+        + '<td>' + row.score + '</td>'
+        + '<td>' + row.moleHits + '</td>'
+        + '<td>' + row.bombHits + '</td>'
+        + '</tr>';
+    });
+
+    tbody.innerHTML = html;
+    section.style.display = '';
+  }
+
   // ======================== RESULT ACTIONS ========================
-  function consent() {
+  async function consent() {
     $btns.style.display = 'none';
-    $dataTA.value = JSON.stringify(dataLog, null, 2);
-    $dataExport.classList.add('show');
-    $thanks.textContent = '感谢你的参与和对心理学研究的贡献！❤️\n数据已显示在下方，点击"一键复制"即可复制。';
+    const statusEl = document.getElementById('upload-status');
+    statusEl.className = 'upload-status loading';
+    statusEl.textContent = '正在上传数据…';
+
+    if (!tcbReady) {
+      await initCloudBase();
+    }
+
+    let ok = false;
+    if (tcbReady) {
+      ok = await uploadExperimentData();
+    }
+
+    statusEl.className = ok ? 'upload-status success' : 'upload-status error';
+    statusEl.textContent = ok
+      ? '数据上传成功！感谢你的参与和对心理学研究的贡献 ❤️'
+      : '上传失败，请检查网络后重试。';
+
+    await showLeaderboard();
+    $thanks.textContent = '感谢你的参与！';
     $thanks.classList.add('show');
   }
 
-  function copyData() {
-    $dataTA.select();
-    const btn = document.getElementById('btn-copy');
-    function onCopied() {
-      btn.textContent = '✅ 已复制！';
-      setTimeout(function() { btn.textContent = '📋 一键复制'; }, 2000);
-    }
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText($dataTA.value).then(onCopied).catch(function() {
-        document.execCommand('copy');
-        onCopied();
-      });
-    } else {
-      document.execCommand('copy');
-      onCopied();
-    }
-  }
-
-  function download() {
-    const blob = new Blob([JSON.stringify(dataLog, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'go-nogo-data-' + new Date().toISOString().slice(0, 10) + '.json';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }
-
-  function reject() {
+async function reject() {
     $btns.style.display = 'none';
-    $thanks.textContent = '感谢你的参与！\n你的数据不会被记录。';
+    if (!tcbReady) { await initCloudBase(); }
+    await showLeaderboard();
+    $thanks.textContent = '你的本轮数据未被上传。';
     $thanks.classList.add('show');
   }
 
@@ -760,13 +886,14 @@
   window.game = {
     start: startGame,
     consent: consent,
-    copyData: copyData,
-    download: download,
     reject: reject,
   };
 
   // Init grid on load
   buildGrid();
+
+  // 预初始化 CloudBase（静默，不影响游戏）
+  initCloudBase();
 })();
 </script>
 
