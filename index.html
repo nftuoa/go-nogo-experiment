@@ -287,6 +287,38 @@
   }
   .thanks.show { display: block; }
 
+  .data-export {
+    display: none;
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    max-width: 400px;
+    gap: 10px;
+  }
+  .data-export.show { display: flex; }
+
+  .data-export textarea {
+    font-family: 'Courier New', monospace;
+    font-size: 0.75rem;
+    background: #0d1b2a;
+    color: #a8d8a8;
+    border: 2px solid var(--green);
+    border-radius: 6px;
+    padding: 12px;
+    height: 180px;
+    resize: vertical;
+    outline: none;
+    user-select: text;
+    -webkit-user-select: text;
+    line-height: 1.6;
+  }
+
+  .btn-copy {
+    background: var(--green);
+    color: #000;
+    align-self: center;
+  }
+
   /* ========== RESPONSIVE ========== */
   @media (max-width: 400px) {
     .grid { gap: 8px; padding: 12px; }
@@ -384,6 +416,11 @@
   </div>
 
   <div class="thanks" id="thanks-msg"></div>
+
+  <div class="data-export" id="data-export">
+    <textarea id="data-textarea" readonly></textarea>
+    <button class="btn btn-copy" id="btn-copy" onclick="game.copyData()">📋 一键复制</button>
+  </div>
 </div>
 
 <script>
@@ -402,8 +439,10 @@
   const $fScore   = document.getElementById('final-score');
   const $fHits    = document.getElementById('final-hits');
   const $fBombs   = document.getElementById('final-bombs');
-  const $thanks   = document.getElementById('thanks-msg');
-  const $btns     = document.getElementById('result-buttons');
+  const $thanks    = document.getElementById('thanks-msg');
+  const $btns      = document.getElementById('result-buttons');
+  const $dataExport = document.getElementById('data-export');
+  const $dataTA    = document.getElementById('data-textarea');
 
   // ======================== GAME STATE ========================
   const TOTAL_TRIALS  = 100;
@@ -533,6 +572,7 @@
     $thanks.classList.remove('show');
     $thanks.textContent = '';
     $btns.style.display = '';
+    $dataExport.classList.remove('show');
     switchScreen($result);
   }
 
@@ -673,15 +713,29 @@
 
   // ======================== RESULT ACTIONS ========================
   function consent() {
-    console.log('===== Go/No-Go 实验数据 =====');
-    console.log('总试次:', dataLog.length);
-    console.log('数据数组:');
-    console.log(JSON.stringify(dataLog, null, 2));
-    console.log('===== 数据结束 =====');
-
     $btns.style.display = 'none';
-    $thanks.textContent = '数据已输出到控制台 (F12 → Console)。\n感谢你的参与和对心理学研究的贡献！❤️';
+    $dataTA.value = JSON.stringify(dataLog, null, 2);
+    $dataExport.classList.add('show');
+    $thanks.textContent = '感谢你的参与和对心理学研究的贡献！❤️\n数据已显示在下方，点击"一键复制"即可复制。';
     $thanks.classList.add('show');
+  }
+
+  function copyData() {
+    $dataTA.select();
+    const btn = document.getElementById('btn-copy');
+    function onCopied() {
+      btn.textContent = '✅ 已复制！';
+      setTimeout(function() { btn.textContent = '📋 一键复制'; }, 2000);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText($dataTA.value).then(onCopied).catch(function() {
+        document.execCommand('copy');
+        onCopied();
+      });
+    } else {
+      document.execCommand('copy');
+      onCopied();
+    }
   }
 
   function download() {
@@ -706,6 +760,7 @@
   window.game = {
     start: startGame,
     consent: consent,
+    copyData: copyData,
     download: download,
     reject: reject,
   };
